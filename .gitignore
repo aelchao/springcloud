@@ -23,7 +23,11 @@
 hs_err_pid*
 
 /target/
-!.mvn/wrapper/maven-wrapper.jar
+# !.mvn/wrapper/maven-wrapper.jar
+
+.mvn
+mvnw
+mvnw.cmd
 
 ### STS ###
 .apt_generated
@@ -50,3 +54,5 @@ hs_err_pid*
 
 # Mac .DS_Store
 .DS_Store
+
+.gitignore
