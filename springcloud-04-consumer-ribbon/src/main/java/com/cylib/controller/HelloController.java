@@ -18,6 +18,7 @@ public class HelloController {
     @RequestMapping("/getinfo")
     @ResponseBody
     public String getInfo() {
+        System.out.println("this is ribbon");
         return helloService.getInfo();
     }
 }

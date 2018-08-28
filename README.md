@@ -123,3 +123,234 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
 
         ![service接口](images/hystrix-feign-04.png)
 
+#### Hystrix Dashboard
+断路器仪表盘:断路器状态监控界面
+1. 添加两个依赖
+
+    ![依赖](images/hystrix-dashboard-01.png)
+2. 在启动类上添加注解
+
+    ![注解](images/hystrix-dashboard-02.png)
+3. 界面如下
+
+    ![界面](images/hystrix-dashboard-03.png)
+
+### 路由Zuul
+Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一部分，比如／api/a转发到到a服务，/api/b转发到到b服务。zuul默认和Ribbon结合实现了负载均衡的功能。
+
+#### 路由转发
+1. 架构示意图
+
+    ![架构示意图](images/zuul-01.png)
+2. 创建项目，添加依赖
+
+    ![依赖](images/zuul-02.png)
+3. 添加注解
+
+    ![注解](images/zuul-03.png)
+4. 修改核心配置文件
+
+    ![配置wenjian ](images/zuul-04.png)
+5. 测试
+    启动注册中心、provider、consumer和zuul项目，访问[http://localhost:8087/a/getinfo](http://localhost:8087/a/getinfo) 或 [http://localhost:8087/b/getinfo](http://localhost:8087/b/getinfo)
+
+#### Zuul过滤器
+1. 编写过滤器类继承ZuulFilter，并重写当中的方法。
+    方法解释：
+    
+    ![zuul-filter](images/zuul-filter-01.png)
+2. Debug启动Consumer项目并在controller方法上加断点，看是否请求相应的项目。
+   访问路径：[http://localhost:8087/a/getinfo](http://localhost:8087/a/getinfo) 或 [http://localhost:8087/b/getinfo](http://localhost:8087/b/getinfo)
+
+### 多注册中心
+当成千上万个服务向注册中心注册的时候，它的负载是非常高的，这在生产环境上是不太合适的，如何将Eureka Server集群化？通过运行多个Eureka实例，使其更具有高可用性即可。
+
+1. 核心配置文件
+    1. application-peer1.properties
+        ```text
+        # 运行端口号
+        server.port=8088
+        
+        # 指定注册中心实例名
+        eureka.instance.hostname=localhost
+        
+        # 应用名称
+        spring.application.name=springcloud-reg1
+        
+        #注册当前服务
+        eureka.client.service-url.defaultZone=http://localhost:8089/eureka
+    
+        ```
+    2. application-peer2.properties
+        ```text
+        # 运行端口号
+        server.port=8089
+        
+        # 指定注册中心实例名
+        eureka.instance.hostname=localhost
+        
+        # 应用名称
+        spring.application.name=springcloud-reg2
+        
+        #注册当前服务
+        eureka.client.service-url.defaultZone=http://localhost:8088/eureka
+        ```
+    3. application.properties
+        ```text
+        # 指定默认加载的配置文件
+        spring.profiles.active=peer1
+        ```
+2. 指定注册中心
+
+    在服务提供者、消费者、代理方等项目指定多个注册中心即可
+    `eureka.client.service-url.defaultZone=http://localhost:8088/eureka,http://localhost:8089/eureka`
+3. 打包运行
+    1. 打包命令`mvn package`
+    2. 运行
+        ```shell
+        java -jar xxxx.jar  --spring.profiles.active=peer1
+        java -jar xxxx.jar  --spring.profiles.active=peer2
+        ```
+
+### 配置管理中心config
+在分布式系统中，由于服务数量巨多，为了方便服务配置文件统一管理，实时更新，所以需要分布式配置中心组件。在Spring Cloud中，有分布式配置中心组件spring cloud config ，它支持配置服务放在配置服务的内存中（即本地），也支持放在远程SVN或Git仓库中。在spring cloud config 组件中，分两个角色，一是config server，二是config client。
+
+1. 配置文件统一管理示意图
+    
+    ![示意图](images/config-01.png)
+2. 创建服务端
+    1. 创建项目，添加依赖
+
+        ![创建项目](images/config-server-01.png)
+    2. 修改pom文件（核对版本号），手动添加svnkit依赖（mvnRepository查找）
+        ```xml
+        <dependency>
+            <groupId>org.tmatesoft.svnkit</groupId>
+            <artifactId>svnkit</artifactId>
+        </dependency>
+        ```
+    3. 在启动类上添加注解
+        ```java
+        package com.cylib;
+        
+        import org.springframework.boot.SpringApplication;
+        import org.springframework.boot.autoconfigure.SpringBootApplication;
+        import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+        import org.springframework.cloud.config.server.EnableConfigServer;
+        
+        @SpringBootApplication
+        @EnableDiscoveryClient
+        @EnableConfigServer
+        public class Springcloud10ConfigServerApplication {
+        
+            public static void main(String[] args) {
+                SpringApplication.run(Springcloud10ConfigServerApplication.class, args);
+            }
+        }
+        ```
+    4. 修改核心配置文件application.properties
+        ```text
+        # 运行端口号
+        server.port=8090
+        
+        # 应用名称
+        spring.application.name=config-server
+        
+        # 注册中心路径
+        eureka.client.service-url.defaultZone=http://localhost:8080/eureka
+        
+        # SVN配置信息
+        # 指定连接版本库类型
+        spring.profiles.active=subversion
+        # 指定SVN服务器路径
+        spring.cloud.config.server.svn.uri=svn://localhost/springcloud/
+        spring.cloud.config.server.svn.username=aelchao
+        spring.cloud.config.server.svn.password=aelchao
+        # 指定默认访问的分支名称
+        spring.cloud.config.server.svn.default-label=trunk
+        ```
+    5. SVN服务器新建springcloud库，在trunk下新建config-server-dev.properties，添加`star.username=zhangsan`
+    6. 测试config-server端是否可用
+    
+        * 访问路径：[http://localhost:8086/config-server/dev](http://localhost:8086/config-server/dev)
+        * 访问路径中config-server是应用名称，dev是配置文件名的一部分，底层自动拼接成要访问的文件名。
+        * 返回信息如下，有配置文件中内容，则证明config-server端可用
+
+            ![返回信息](images/config-server-02.png)
+3. 创建客户端
+    1. 创建项目，添加依赖（修改pom.xml）（由于测试使用到springmvc，需要添加web起步依赖）
+        
+        1. ![创建项目](images/config-client-01.png)
+        
+            ```xml
+            <dependency>
+               <groupId>org.springframework.boot</groupId>
+               <artifactId>spring-boot-starter-web</artifactId>
+            </dependency>
+            ```
+        
+        2. 其他依赖和服务端相同
+        
+    2. 重命名核心配置文件为bootstrap.properties
+        ```text
+        # 运行端口号
+        server.port=8091
+        
+        # 应用名称
+        spring.application.name=config-client
+        
+        # 注册中心路径
+        eureka.client.service-url.defaultZone=http://localhost:8080/eureka
+        
+        # 服务端地址
+        spring.cloud.config.uri=http://localhost:8090
+        
+        # 分支名称
+        spring.cloud.config.label=trunk
+        
+        # 访问文件名称
+        spring.cloud.config.name=config-client
+        spring.cloud.config.profile=dev
+        ```
+    3. 在SVN，springcloud/trunk/新建config-config-dev.properties，添加`star.username=lisi`
+    4. 启动类测试代码如下：
+        ```java
+        package com.cylib;
+        
+        import org.springframework.beans.factory.annotation.Value;
+        import org.springframework.boot.SpringApplication;
+        import org.springframework.boot.autoconfigure.SpringBootApplication;
+        import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RestController;
+        
+        @SpringBootApplication
+        @EnableDiscoveryClient
+        @RestController
+        public class Springcloud11ConfigClientApplication {
+        
+            @Value("${star.username}")
+            private String username;
+        
+            @RequestMapping("getusername")
+            public String getUsername() {
+                return username;
+            }
+        
+           public static void main(String[] args) {
+              SpringApplication.run(Springcloud11ConfigClientApplication.class, args);
+           }
+        }
+        ```
+    5. 浏览器访问，结果如下：
+
+        ![效果](images/config-client-02.png)
+    6. 配置中心服务端和客户端都需要添加注册中心，否则客户端会启动失败
+        * pom.xml
+            ```xml
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+            </dependency>
+            ```
+        * 启动类增加注解@EnableDiscoveryClient

@@ -16,6 +16,7 @@ public class HelloController {
 
     @RequestMapping("getinfo")
     public String getInfo() {
+        System.out.println("this is feign");
         return helloService.getInfo();
     }
 }
