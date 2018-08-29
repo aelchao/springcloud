@@ -1,4 +1,27 @@
+<!-- MarkdownTOC levels="2,3,4" autolink="true" autoanchor="true" style="ordered" uri_encoding="false" -->
+
+1. [Spring Cloud](#spring-cloud)
+    1. [简介](#简介)
+    1. [Eureka注册中心](#eureka注册中心)
+    1. [Provider创建](#provider创建)
+    1. [Consumer创建-Ribbon方式](#consumer创建-ribbon方式)
+    1. [Consumer创建-Feign方式](#consumer创建-feign方式)
+    1. [断路器-Hystrix](#断路器-hystrix)
+        1. [ribbon+RestTemplate方式中使用断路器](#ribbonresttemplate方式中使用断路器)
+        1. [feign中使用断路器](#feign中使用断路器)
+        1. [Hystrix Dashboard](#hystrix-dashboard)
+    1. [路由Zuul](#路由zuul)
+        1. [路由转发](#路由转发)
+        1. [Zuul过滤器](#zuul过滤器)
+    1. [多注册中心](#多注册中心)
+    1. [配置管理中心config](#配置管理中心config)
+
+<!-- /MarkdownTOC -->
+
+
+<a id="spring-cloud"></a>
 ## Spring Cloud
+<a id="简介"></a>
 ### 简介
 1. Spring Cloud是基于Spring Boot的一整套实现微服务的框架。提供了微服务开发所需的配置管理、服务发现、断路器、智能路由、微代理、控制总线、全局锁、决策竞选、分布式会话和集群状态管理组件。
 2. [官网](https://projects.spring.io/spring-cloud/)
@@ -6,6 +29,7 @@
 
     ![dubbo和Spring Cloud对比](images/dubbo-springcloud.png)
 
+<a id="eureka注册中心"></a>
 ### Eureka注册中心
 1. 创建项目，选择依赖
 
@@ -21,6 +45,7 @@
 
     ![启动访问](images/eureka-04.png)
 
+<a id="provider创建"></a>
 ### Provider创建
 1. 创建Provider，添加依赖
 
@@ -36,6 +61,7 @@
 
     ![启动](images/provider-04.png)
 
+<a id="consumer创建-ribbon方式"></a>
 ### Consumer创建-Ribbon方式
 Spring cloud的服务消费者Consumer有两种服务调用方式，一种是ribbon+restTemplate，另一种是feign。
 ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
@@ -60,6 +86,7 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
 
     ![创建controller](images/consumer-ribbon-06.png)
 
+<a id="consumer创建-feign方式"></a>
 ### Consumer创建-Feign方式
 该方式是对RestTemplate方式的封装（无需创建该对象，并通过该对象调用服务），直接在Consumer的Service接口中通过Feign注解完成服务的调用。
 简而言之：
@@ -86,6 +113,7 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
         1. ribbon需要加载RestTemplate
         2. feign无需手动加载
 
+<a id="断路器-hystrix"></a>
 ### 断路器-Hystrix
 如果单个服务出现问题，由于服务与服务之间的依赖性，故障会传播，会对整个微服务系统造成灾难性的严重后果，这就是服务故障的“雪崩”效应。
 为了解决这个问题，业界提出了断路器模型。
@@ -93,6 +121,7 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
 
 ![hystrix](images/hystrix-01.png)
 
+<a id="ribbonresttemplate方式中使用断路器"></a>
 #### ribbon+RestTemplate方式中使用断路器
 1. 创建项目、添加依赖
 
@@ -107,6 +136,7 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
 5. HelloService.java
     ![service](images/hystrix-ribbon-04.png)    
 
+<a id="feign中使用断路器"></a>
 #### feign中使用断路器
 1. 手动添加hystrix的依赖（在mvnRepository找即可）
     
@@ -123,6 +153,7 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
 
         ![service接口](images/hystrix-feign-04.png)
 
+<a id="hystrix-dashboard"></a>
 #### Hystrix Dashboard
 断路器仪表盘:断路器状态监控界面
 1. 添加两个依赖
@@ -135,9 +166,11 @@ ribbon是一个负载均衡客户端。Feign默认集成了ribbon。
 
     ![界面](images/hystrix-dashboard-03.png)
 
+<a id="路由zuul"></a>
 ### 路由Zuul
 Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一部分，比如／api/a转发到到a服务，/api/b转发到到b服务。zuul默认和Ribbon结合实现了负载均衡的功能。
 
+<a id="路由转发"></a>
 #### 路由转发
 1. 架构示意图
 
@@ -154,6 +187,7 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
 5. 测试
     启动注册中心、provider、consumer和zuul项目，访问[http://localhost:8087/a/getinfo](http://localhost:8087/a/getinfo) 或 [http://localhost:8087/b/getinfo](http://localhost:8087/b/getinfo)
 
+<a id="zuul过滤器"></a>
 #### Zuul过滤器
 1. 编写过滤器类继承ZuulFilter，并重写当中的方法。
     方法解释：
@@ -162,6 +196,7 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
 2. Debug启动Consumer项目并在controller方法上加断点，看是否请求相应的项目。
    访问路径：[http://localhost:8087/a/getinfo](http://localhost:8087/a/getinfo) 或 [http://localhost:8087/b/getinfo](http://localhost:8087/b/getinfo)
 
+<a id="多注册中心"></a>
 ### 多注册中心
 当成千上万个服务向注册中心注册的时候，它的负载是非常高的，这在生产环境上是不太合适的，如何将Eureka Server集群化？通过运行多个Eureka实例，使其更具有高可用性即可。
 
@@ -212,6 +247,7 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
         java -jar xxxx.jar  --spring.profiles.active=peer2
         ```
 
+<a id="配置管理中心config"></a>
 ### 配置管理中心config
 在分布式系统中，由于服务数量巨多，为了方便服务配置文件统一管理，实时更新，所以需要分布式配置中心组件。在Spring Cloud中，有分布式配置中心组件spring cloud config ，它支持配置服务放在配置服务的内存中（即本地），也支持放在远程SVN或Git仓库中。在spring cloud config 组件中，分两个角色，一是config server，二是config client。
 
@@ -314,7 +350,7 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
         ```
     3. 在SVN，springcloud/trunk/新建config-config-dev.properties，添加`star.username=lisi`
     4. 启动类测试代码如下：
-        ```java
+        ```
         package com.cylib;
         
         import org.springframework.beans.factory.annotation.Value;
@@ -345,7 +381,7 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
     5. 浏览器访问，结果如下：
 
         ![效果](images/config-client-02.png)
-    6. 配置中心服务端和客户端都需要添加注册中心，否则客户端会启动失败
+    6. 配置中心服务端和客户端都需要添加注册中心，否则客户端会有异常`com.netflix.discovery.shared.transport.TransportException: Cannot execute request on any`
         * pom.xml
             ```xml
             <dependency>
@@ -353,4 +389,9 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
                 <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
             </dependency>
             ```
-        * 启动类增加注解@EnableDiscoveryClient
+        * 配置文件application.properties和bootstrap.properties增加注册中心
+            ```text
+            # 注册中心路径
+            eureka.client.service-url.defaultZone=http://localhost:8080/eureka
+            ```
+        * 启动类增加注解`@EnableDiscoveryClient`
