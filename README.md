@@ -15,8 +15,12 @@
         1. [Zuul过滤器](#zuul过滤器)
     1. [多注册中心](#多注册中心)
     1. [配置管理中心config](#配置管理中心config)
+    1. [服务追踪Zipkin](#服务追踪zipkin)
+    1. [RabbitMQ](#rabbitmq)
+    1. [Spring Cloud Bus消息总线](#spring-cloud-bus消息总线)
 
 <!-- /MarkdownTOC -->
+
 
 
 <a id="spring-cloud"></a>
@@ -266,7 +270,7 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
         </dependency>
         ```
     3. 在启动类上添加注解
-        ```java
+        ```
         package com.cylib;
         
         import org.springframework.boot.SpringApplication;
@@ -395,3 +399,303 @@ Zuul的主要功能是路由转发和过滤器。路由功能是微服务的一�
             eureka.client.service-url.defaultZone=http://localhost:8080/eureka
             ```
         * 启动类增加注解`@EnableDiscoveryClient`
+
+<a id="服务追踪zipkin"></a>
+### 服务追踪Zipkin
+
+随着服务的越来越多，对调用链的分析会越来越复杂，如何解决这一问题呢？
+Spring Cloud提供了服务追踪组件zipkin
+本案例主要有三个工程组成：一个server-zipkin，它的主要作用使用ZipkinServer的功能，收集调用数据并展示，一个service-01和一个service-02，这两个service可以相互调用，并且只有调用了，server-zipkin才会收集数据，这就是为什么叫服务追踪了。
+
+1. 创建server-zipkin
+
+    1. 创建项目，添加依赖（mvnrepository查找，不添加版本号可能会版本冲突）
+        ```
+        <dependency>
+            <groupId>io.zipkin.java</groupId>
+            <artifactId>zipkin-server</artifactId>
+            <version>2.4.5</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>io.zipkin.java</groupId>
+            <artifactId>zipkin-autoconfigure-ui</artifactId>
+            <version>2.4.5</version>
+        </dependency>
+        ```
+
+    2. 启动类中添加注解 `@EnableZipkinServer`
+    3. 修改核心配置文件
+        ```
+        # 运行端口号
+        server.port=9411
+        ```
+
+2. 创建service-01
+    1. 创建项目，添加依赖
+        ```xml
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-zipkin</artifactId>
+            <version>1.3.1.RELEASE</version>
+        </dependency>
+        ```
+    2. 修改核心配置文件
+        ```text
+        # 运行端口号
+        server.port=8092
+
+        # 应用名称
+        spring.application.name=zipkin-service01
+
+        # zipkin server地址
+        spring.zipkin.base-url=http://localhost:9411
+        ```
+
+    3. 启动类
+    
+        ```
+        package com.cylib;
+
+        import org.springframework.beans.factory.annotation.Autowired;
+        import org.springframework.boot.SpringApplication;
+        import org.springframework.boot.autoconfigure.SpringBootApplication;
+        import org.springframework.cloud.sleuth.sampler.AlwaysSampler;
+        import org.springframework.context.annotation.Bean;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RestController;
+        import org.springframework.web.client.RestTemplate;
+
+        @SpringBootApplication
+        @RestController
+        public class Springcloud12Service01Application {
+
+            @Autowired
+            private RestTemplate restTemplate;
+
+            @Bean
+            public RestTemplate getRestTemplate() {
+                return new RestTemplate();
+            }
+
+            // 构建采样器
+            @Bean
+            public AlwaysSampler getAlwaysSampler() {
+                return new AlwaysSampler();
+            }
+
+            @RequestMapping("/getinfo")
+            public String getInfo() {
+                return "zipkin service 01";
+            }
+
+            @RequestMapping("/getservice")
+            public String getService() {
+                return restTemplate.getForObject("http://localhost:8093/getservice", String.class);
+            }
+
+            public static void main(String[] args) {
+                SpringApplication.run(Springcloud12Service01Application.class, args);
+            }
+        }
+        ```
+
+3. 创建service-02
+    1. 创建项目，添加依赖（不添加版本号可能会版本冲突）
+        ```xml
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-zipkin</artifactId>
+            <version>1.3.1.RELEASE</version>
+        </dependency>
+        ```
+    2. 修改核心配置文件
+        ```text
+        # 运行端口号
+        server.port=8093
+
+        # 应用名称
+        spring.application.name=zipkin-service02
+
+        # zipkin server地址
+        spring.zipkin.base-url=http://localhost:9411
+        ```
+
+    3. 启动类
+        ```
+        package com.cylib;
+
+        import org.springframework.beans.factory.annotation.Autowired;
+        import org.springframework.boot.SpringApplication;
+        import org.springframework.boot.autoconfigure.SpringBootApplication;
+        import org.springframework.cloud.sleuth.sampler.AlwaysSampler;
+        import org.springframework.context.annotation.Bean;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RestController;
+        import org.springframework.web.client.RestTemplate;
+
+        @SpringBootApplication
+        @RestController
+        public class Springcloud12Service02Application {
+            @Autowired
+            private RestTemplate restTemplate;
+
+            @Bean
+            public RestTemplate getRestTemplate() {
+                return new RestTemplate();
+            }
+
+            // 构建采样器
+            @Bean
+            public AlwaysSampler getAlwaysSampler() {
+                return new AlwaysSampler();
+            }
+
+            @RequestMapping("/getservice")
+            public String getService() {
+                return restTemplate.getForObject("http://localhost:8092/getinfo", String.class);
+            }
+
+            public static void main(String[] args) {
+                SpringApplication.run(Springcloud12Service02Application.class, args);
+            }
+        }
+        ```
+
+4. 测试
+    1. 分别启动server-zipkin、service-01和service-02
+    2. 访问service-02：[http://localhost:8093/getservice](http://localhost:8093/getservice)，会调用service-01
+
+        ![访问](images/zipkin-01.png)
+    3. 查看依赖关系，访问[http://localhost:9411](http://localhost:9411)
+        1. 点击`Find Traces`
+
+            ![Find Traces](images/zipkin-02.png)
+        2. 点击依赖分析查看
+
+            ![依赖分析](images/zipkin-03.png)
+
+
+<a id="rabbitmq"></a>
+### RabbitMQ
+
+* 消息队列示意图
+
+    ![消息队列示意图](images/rabbitmq-01.png)
+* 消息队列主要解决了应用耦合、异步处理、流量削峰等问题。
+* 应用场景：当不需要立即获取结果，但是并发量又需要进行控制的时候。
+* Spring Cloud的消息总线（Spring Cloud Bus）组件默认采用的是RabbitMQ实现的。
+
+1. Erlang安装
+    1. 安装依赖
+        ```shell
+        yum -y install make gcc gcc-c++ kernel-devel 4 ncurses-devel openssl-devel perl
+        ```
+    2. 上传并解压
+        `tar -zxvf otp_src_18.3.tar.gz`
+    3. 检测及配置
+        1. 切换到解压目录：`cd otp_src_18.3`
+        2. 执行如下命令：`./configure --prefix=/usr/local/erlang`
+    4. 编译、安装
+        ```shell
+        make && make install
+        ```
+    5. 配置环境变量，当前用户`~/.bash_profile`或所有用户`/etc/profile`
+        1. `vim ~/.bash_profile`
+        2. 
+        ```shell
+        export ERLANG_HOME=/usr/local/erlang
+        export PATH=$PATH:$ERLANG_HOME/bin
+        ```
+        3. `source ~/.bash_profile`
+    6. 检查是否安装成功，命令`erl`
+        
+        ![erl](images/rabbitmq-02.png)
+
+2. RabbitMQ安装
+    * 上传并解压
+        1. 安装xz `yum -y install xz`
+        2. 创建安装目录 `mkdir rabbitmq`
+        3. 解压命令 `tar -xvJf 文件名 -C /usr/local/rabbitmq`
+
+3. 启动RabbitMQ服务
+    * 进入到`sbin`目录下，后置启动，`./rabbitmq-server -detached`
+    * 通过查看进程号查看是否启动成功
+
+4. 打开可视化管理界面功能（该服务默认端口号`15672`）
+    * 进入`sbin`目录下，执行 `./rabbitmq-plugins enable rabbitmq_management`
+
+        ![打开可视化管理界面](images/rabbitmq-03.png)
+
+5. 添加用户、指定角色、权限
+    1. 进入`sbin`目录执行
+    2. 添加用户并设定密码 `./rabbitmqctl add_user radmin 123456`
+    3. 给用户指定角色 `./rabbitmqctl set_user_tags radmin administrator`
+    4. 给用户指定权限 `./rabbitmqctl set_permissions radmin -p / ".*" ".*" ".*"`
+6. 放行端口号
+    * 因为rabbitmq服务设计端口很多，逐个放行相对麻烦，所以直接关闭防火墙（方便测试，生产环境自行权衡）
+    * RabbitMQ默认端口号
+
+        ![端口](images/rabbitmq-04.png)
+
+7. 访问：端口号为`15672`
+    * ![url](images/rabbitmq-05.png)
+    * ![管理界面](images/rabbitmq-06.png)
+
+<a id="spring-cloud-bus消息总线"></a>
+### Spring Cloud Bus消息总线
+
+该组件的作用：当git或SVN端配置文件修改时，借助消息中间件同步更新，使整个微服务集群都达到更新配置文件。以下代码在配置中心上添加。
+
+1. 修改服务端程序
+    1. 添加依赖（mvnrepository中查找）
+        ```xml
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bus-amqp</artifactId>
+        </dependency>
+        ```
+    2. 修改核心配置文件，添加mq信息
+        * 注意端口号为`5672`
+        ```text
+        # rabbitmq相关配置
+        # rabbitmq主机地址
+        spring.rabbitmq.host=172.16.10.19
+        # rabbitmq端口号
+        spring.rabbitmq.port=5672
+        # rabbitmq用户名
+        spring.rabbitmq.username=radmin
+        # rabbitmq密码
+        spring.rabbitmq.password=123456
+        ```
+
+2. 修改客户端程序
+    1. 添加依赖
+        ```xml
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bus-amqp</artifactId>
+        </dependency>
+        ```
+    2. 修改核心配置文件（添加mq信息及禁用权限管理功能）
+        ```text
+        # rabbitmq相关配置
+        # rabbitmq主机地址
+        spring.rabbitmq.host=172.16.10.19
+        # rabbitmq端口号
+        spring.rabbitmq.port=5672
+        # rabbitmq用户名
+        spring.rabbitmq.username=radmin
+        # rabbitmq密码
+        spring.rabbitmq.password=123456
+
+        # 禁用权限管理功能
+        management.security.enabled=false
+        ```
+
+       3. 在客户端运行类上添加注解`@RefreshScope`
+       4. 修改SVN服务器中`trunk/config-client-dev.properties`中`star.username`的值
+       5. 发起post请求执行属性，不支持get请求刷新
+           * post请求刷新地址：http://客户端IP地址:端口号/bus/refresh
+           * 采用Linux中的命令模拟发送post请求 `curl -X POST http://172.16.10.19:8091/bus/refresh`
+
